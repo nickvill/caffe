@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <csignal>
 #include <ctime>
 #include <map>
 #include <set>
@@ -2042,7 +2043,7 @@ void VisualizeBBox(const vector<cv::Mat>& images, const Blob<Dtype>* detections,
     }
     cv::imshow("detections", image);
     if (cv::waitKey(1) == 27) {
-      exit(-1);
+      raise(SIGINT);
     }
   }
   start_clock = clock();

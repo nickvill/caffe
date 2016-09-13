@@ -1984,11 +1984,13 @@ vector<cv::Scalar> GetColors(const int n) {
   return colors;
 }
 static clock_t start_clock = clock();
+static cv::VideoWriter cap_out;
 
 template <typename Dtype>
 void VisualizeBBox(const vector<cv::Mat>& images, const Blob<Dtype>* detections,
                    const float threshold, const vector<cv::Scalar>& colors,
-                   const map<int, string>& label_to_display_name) {
+                   const map<int, string>& label_to_display_name,
+                   const string& save_file) {
   // Retrieve detections.
   CHECK_EQ(detections->width(), 7);
   const int num_det = detections->height();
@@ -2065,6 +2067,16 @@ void VisualizeBBox(const vector<cv::Mat>& images, const Blob<Dtype>* detections,
                     fontface, scale, CV_RGB(0, 0, 0), thickness, 8);
       }
     }
+    // Save result if required.
+    if (!save_file.empty()) {
+      if (!cap_out.isOpened()) {
+        cv::Size size(image.size().width, image.size().height);
+        cv::VideoWriter outputVideo(save_file, CV_FOURCC('D', 'I', 'V', 'X'),
+            30, size, true);
+        cap_out = outputVideo;
+      }
+      cap_out.write(image);
+    }
     cv::imshow("detections", image);
     if (cv::waitKey(1) == 27) {
       raise(SIGINT);
@@ -2077,12 +2089,14 @@ template
 void VisualizeBBox(const vector<cv::Mat>& images,
                    const Blob<float>* detections,
                    const float threshold, const vector<cv::Scalar>& colors,
-                   const map<int, string>& label_to_display_name);
+                   const map<int, string>& label_to_display_name,
+                   const string& save_file);
 template
 void VisualizeBBox(const vector<cv::Mat>& images,
                    const Blob<double>* detections,
                    const float threshold, const vector<cv::Scalar>& colors,
-                   const map<int, string>& label_to_display_name);
+                   const map<int, string>& label_to_display_name,
+                   const string& save_file);
 
 #endif  // USE_OPENCV
 

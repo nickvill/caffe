@@ -2,7 +2,7 @@
 # conv clients
 
 start_layer : "data"
-end_layers : "pool5"
+end_layers : "prob"
 num_splits : 1
 
 node_info {

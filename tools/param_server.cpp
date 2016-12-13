@@ -7,6 +7,8 @@
 using namespace caffe; // NOLINT (build namespace)
 
 DEFINE_int32(ps_threads, 1, "number of parameter server threads");
+DEFINE_int32(zmq_cores, 0, "number of cores used by zeromq"
+                            "0 means don't bind zmq threads to cores");
 
 DEFINE_string(ip, "127.0.0.1", "the ip of the id and model server");
 DEFINE_int32(id_port, 1955, "the tcp port of ID server");
@@ -18,8 +20,11 @@ DEFINE_string(request, "models/bvlc_alexnet/ps.prototxt", \
 // "the location of the model request configuration file");
 
 int main(int argc, char** argv) {
+  FLAGS_alsologtostderr = 1;
   google::InstallFailureSignalHandler();
+  google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  Caffe::set_mode(Caffe::CPU);
 
   string id_server_addr = "tcp://";
   id_server_addr += FLAGS_ip;
@@ -36,7 +41,7 @@ int main(int argc, char** argv) {
   NodeEnv::set_request_file(FLAGS_request);
   NodeEnv::set_node_role(PARAM_SERVER);
 
-  NodeEnv::InitNode();
+  NodeEnv::InitNode(FLAGS_ps_threads, FLAGS_zmq_cores);
 
   LOG(INFO) << "node id: " << NodeEnv::Instance()->ID();
   shared_ptr<ParamServer<float> > ps(new ParamServer<float>(FLAGS_ps_threads));

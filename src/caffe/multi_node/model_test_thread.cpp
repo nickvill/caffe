@@ -55,7 +55,7 @@ void TestThread<Dtype>::SendParamRquest() {
 
 template <typename Dtype>
 void TestThread<Dtype>::UpdateTrainIter(shared_ptr<Msg> m) {
-  int iter_in_msg = *(reinterpret_cast<int *>(m->ZmsgData(0)));
+  int iter_in_msg = *(reinterpret_cast<int *>(m->zmsg_data(0)));
   if (iter_in_msg > train_iter_) {
     train_iter_ = iter_in_msg;
   }

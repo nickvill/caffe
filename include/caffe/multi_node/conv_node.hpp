@@ -60,6 +60,8 @@ class ConvClient : public MsgHub<Dtype> {
   // connect the topologies in reduce tree
   void SetUpReduceTree();
 
+  void RouteParamMsg(shared_ptr<Msg> m);
+
  protected:
   /// socket used to communicate Fully Connected layers
   vector<shared_ptr<SkSock> > fc_clients_;

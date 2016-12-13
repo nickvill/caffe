@@ -17,7 +17,7 @@ int Msg::MergeMsg(shared_ptr<Msg> m) {
       BlobInfo *tgt_blob = header_.mutable_blobs(blob_index);
 
       for (int k = 0; k < src_blob.msg_index_size(); k++) {
-        int msg_index = AppendZmsg(m->GetZmsg(src_blob.msg_index(k)));
+        int msg_index = AppendZmsg(m->get_zmsg(src_blob.msg_index(k)));
         tgt_blob->add_msg_index(msg_index);
       }
     } else {
@@ -25,7 +25,7 @@ int Msg::MergeMsg(shared_ptr<Msg> m) {
 
       new_blob.clear_msg_index();
       for (int k = 0; k < src_blob.msg_index_size(); k++) {
-        new_blob.add_msg_index(AppendZmsg(m->GetZmsg(src_blob.msg_index(k))));
+        new_blob.add_msg_index(AppendZmsg(m->get_zmsg(src_blob.msg_index(k))));
       }
 
       add_blob_info(new_blob);
@@ -147,6 +147,26 @@ void Msg::AppendBlob(const string& blob_name, const void *data, int sz) {
   pblob->add_msg_index(msg_idx);
 }
 
+void Msg::AddSharedBlob(const string& blob_name, void *data, int sz) {
+  zmq_msg_t *m = new zmq_msg_t;
+  void *hint = NULL;
+  zmq_msg_init_data(m, data, sz, free_shared_data, hint);
+  int msg_idx = zmsg_vec_.size();
+  zmsg_vec_.push_back(m);
+
+  if (has_blob(blob_name)) {
+    int blob_idx = blob_index_by_name(blob_name);
+    BlobInfo *pblob = header_.mutable_blobs(blob_idx);
+    pblob->add_msg_index(msg_idx);
+  } else {
+    BlobInfo info;
+    info.set_blob_name(blob_name);
+    info.add_msg_index(msg_idx);
+
+    add_blob_info(info);
+  }
+}
+
 void *Msg::AllocBlob(const string& blob_name, int sz) {
   CHECK(!has_blob(blob_name)) << "allocating an exists blob: " << blob_name;
 
@@ -174,7 +194,7 @@ void Msg::CopyBlob(const string& blob_name, void *data, int sz) {
   int msg_data_size = 0;
   // sequetialize the messages
   for (int i = 0; i < bi.msg_index_size(); i++) {
-    msg_data_size += ZmsgSize(bi.msg_index(i));
+    msg_data_size += zmsg_size(bi.msg_index(i));
   }
 
   CHECK_EQ(msg_data_size, sz);
@@ -182,8 +202,8 @@ void Msg::CopyBlob(const string& blob_name, void *data, int sz) {
   char *blob_data = reinterpret_cast<char *>(data);
   for (int i = 0; i < bi.msg_index_size(); i++) {
     int msg_idx = bi.msg_index(i);
-    memcpy(blob_data, ZmsgData(msg_idx), ZmsgSize(msg_idx));  // NOLINT
-    blob_data += ZmsgSize(msg_idx);
+    memcpy(blob_data, zmsg_data(msg_idx), zmsg_size(msg_idx));  // NOLINT
+    blob_data += zmsg_size(msg_idx);
   }
 }
 

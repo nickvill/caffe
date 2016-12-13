@@ -6,22 +6,30 @@
 
 namespace caffe {
 
-void CPUDispatcher::Dispatch(vector<vector<int> > *pthread_arr) {
+void CPUDispatcher::Dispatch(vector<vector<int> > *pthread_arr, int num_threads) {
   ParseCPUInfo();
 
 #if (defined USE_MKL) && (defined _OPENMP)
-  int num_threads = pthread_arr->size();
   int omp_threads = omp_get_max_threads();
 
   CHECK_LE(omp_threads * num_threads, num_cores_)
                 << "too many threads to be scheduled";
 
-  if (pthread_arr->size() <= 0) {
-    LOG(ERROR) << "thread number cannot be 0";
-  } else if (pthread_arr->size() == 1) {
+  CHECK_GE(num_threads, 1)
+                << "at least 1 workers";
+
+  pthread_arr->clear();
+  // reserve the last slot for free cores
+  pthread_arr->resize(num_threads + 1);
+
+  if (num_threads == 1) {
     // use all the cores if only 1 thread
     for (int i = 0; i < omp_threads; i++) {
       pthread_arr->at(0).push_back(i);
+    }
+
+    for (int i = omp_threads; i < num_cores_; i++) {
+      pthread_arr->at(1).push_back(i);
     }
   } else {
     // evenly distribute the threads to each socket
@@ -50,6 +58,12 @@ void CPUDispatcher::Dispatch(vector<vector<int> > *pthread_arr) {
         }
         thrd_idx++;
       }
+
+      // push the free cores to free list
+      for (int j = omp_threads * thrd_num_arr[i]; j < cores_per_socket_; j++) {
+        int core_idx = i * cores_per_socket_ + j;
+        pthread_arr->at(num_threads).push_back(core_idx);
+      }
     }  // end for
   }
 
@@ -59,11 +73,11 @@ void CPUDispatcher::Dispatch(vector<vector<int> > *pthread_arr) {
 }
 
 void CPUDispatcher::ParseCPUInfo() {
-  num_cores_ = NodeEnv::Instance()->GetOnlineCores();
-  num_sockets_ = NodeEnv::Instance()->GetSockets();
+  cores_per_socket_ = NodeEnv::Instance()->cores_per_sock();
+  num_sockets_ = NodeEnv::Instance()->num_sockets();
 
   // TODO: parse from cpu info
-  cores_per_socket_ = num_cores_ / num_sockets_;
+  num_cores_ = num_sockets_ * cores_per_socket_;
 }
 
 }  // end namespace caffe

@@ -22,6 +22,10 @@ DEFINE_int32(workers, 0, "number of convolutional workers in fc server");
 DEFINE_int32(sub_solvers, 1,
         "number of overlapping sub-solvers in conv clients");
 
+DEFINE_int32(msg_thresh, 1024,
+        "mininum size of message to be transfered to parameter server");
+
+
 using caffe::ModelMap;
 using caffe::PONG;
 using caffe::Msg;
@@ -29,6 +33,7 @@ using caffe::SkServer;
 using caffe::GET_TRAIN_MODEL;
 using caffe::SkSock;
 using caffe::PING;
+using caffe::Caffe;
 
 // id server
 // low frequence update
@@ -67,7 +72,10 @@ void model_server_thread() {
   shared_ptr<SkServer> mserver(new SkServer());
   mserver->Bind(FLAGS_model_server);
 
-  ModelMap<float> lmap(FLAGS_solver, FLAGS_workers, FLAGS_sub_solvers);
+  ModelMap<float> lmap(FLAGS_solver,
+                       FLAGS_workers,
+                       FLAGS_sub_solvers,
+                       FLAGS_msg_thresh);
 
   if (FLAGS_weights.size() > 0) {
     lmap.CopyTrainedLayersFrom(FLAGS_weights);
@@ -101,8 +109,11 @@ void model_server_thread() {
 
 
 int main(int argc, char** argv) {
+  FLAGS_alsologtostderr = 1;
   google::InstallFailureSignalHandler();
+  google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  Caffe::set_mode(Caffe::CPU);
 
   CHECK_GT(FLAGS_workers, 0) <<
               "Number of convolutional workers should be larger than 0";

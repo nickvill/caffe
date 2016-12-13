@@ -72,6 +72,11 @@ class SkSock {
     return sock_;
   }
 
+  static void set_cpu_cores(const vector<int>& cpu_cores) {
+    boost::mutex::scoped_lock lock(zmq_init_mutex_);
+    zmq_cpu_cores_ = cpu_cores;
+  }
+
  protected:
   int SendHeader(shared_ptr<Msg> msg);
 
@@ -82,6 +87,7 @@ class SkSock {
   string addr_;
 
   void InitZmq(void);
+
   static void *zmq_ctx_;
 
  protected:
@@ -93,7 +99,11 @@ class SkSock {
  private:
   // a zmq context should be inited only once
   static boost::mutex zmq_init_mutex_;
+
   static int inited_cnt_;
+
+  // a list of cpu cores zeromq can use
+  static vector<int> zmq_cpu_cores_;
 };
 
 }  // end namespace caffe

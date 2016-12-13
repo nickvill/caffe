@@ -64,8 +64,12 @@ int FcNode<Dtype>::Init() {
   }
 
   vector<vector<int> > omp_cores;
-  omp_cores.resize(this->nworkers_);
-  this->DispatchCPU(&omp_cores);
+  this->DispatchCPU(&omp_cores, this->nworkers_);
+  const vector<int>& free_cores = omp_cores[this->nworkers_];
+  CHECK_GE(free_cores.size(), 2)
+            << "at least 2 free cores for dispatch thread";
+  int param_core_idx = free_cores[0];
+  int route_core_idx = free_cores[1];
 
   for (int i = 0; i < this->nworkers_; i++) {
     this->threads_[i]->SetOMPCores(omp_cores[i]);
@@ -77,7 +81,8 @@ int FcNode<Dtype>::Init() {
                               new FcParamThread<Dtype>(this->nworkers_));
 
   vector<int> param_cores;
-  for (int i = 0; i < omp_cores.size(); i++) {
+  param_cores.push_back(param_core_idx);
+  for (int i = 0; i < this->nworkers_; i++) {
     for (int j = 0; j < omp_cores[i].size(); j++) {
       LOG(INFO) << "thread: " << i << ", core: " << omp_cores[i][j];
       param_cores.push_back(omp_cores[i][j]);
@@ -114,7 +119,7 @@ int FcNode<Dtype>::Init() {
 
   NodeEnv::Instance()->SetRootSolver(pfc0);
 
-  int nsockets = NodeEnv::Instance()->GetSockets();
+  int nsockets = NodeEnv::Instance()->num_sockets();
   WorkerThread<Dtype>::InitParamSolver(pfc0, nsockets);
 
   // init parameter buffer
@@ -137,7 +142,7 @@ int FcNode<Dtype>::Init() {
 
   // bind the route thread to last core
   vector<int> core_list;
-  core_list.push_back(NodeEnv::Instance()->GetOnlineCores() - 1);
+  core_list.push_back(route_core_idx);
   this->BindCores(core_list);
 
   return 0;

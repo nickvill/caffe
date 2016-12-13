@@ -355,7 +355,7 @@ ifeq ($(BLAS), mkl)
 	# MKL
 	LIBRARIES += mkl_rt
 	COMMON_FLAGS += -DUSE_MKL
-	MKL_DIR ?= /opt/intel/mkl
+	MKL_DIR ?= $(MKLROOT)
 	BLAS_INCLUDE ?= $(MKL_DIR)/include
 	BLAS_LIB ?= $(MKL_DIR)/lib $(MKL_DIR)/lib/intel64
 
@@ -399,6 +399,7 @@ USE_OPENMP ?= 1
 ifeq ($(USE_OPENMP), 1)
 	# OMP
 	# COMMON_FLAGS += -D_OPENMP
+	LIBRARY_DIRS += $(MKL_DIR)/../compiler/lib/intel64
 	COMMON_FLAGS += -fopenmp
 	ifeq ($(BLAS), mkl)
 		LIBRARIES += iomp5

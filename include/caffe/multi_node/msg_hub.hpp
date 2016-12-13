@@ -96,8 +96,8 @@ class MsgHub {
   int StartThreads();
 
   // statically dispatch CPU cores to work threads
-  void DispatchCPU(vector<vector<int> > *pthread_arr) {
-    dispatcher_.Dispatch(pthread_arr);
+  void DispatchCPU(vector<vector<int> > *pthread_arr, int num_threads) {
+    dispatcher_.Dispatch(pthread_arr, num_threads);
   }
 
   // enqueue a message to a worker thread

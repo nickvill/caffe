@@ -15,7 +15,8 @@ layer {
     mean_file: "data/ilsvrc12/imagenet_mean.binaryproto"
   }
   data_param {
-    source: "/home/disk/imagenet/ilsvrc12_train_lmdb"
+    source: "/home/disk2/ilsvrc2012trainlmdbseg"
+    # source: "/home/disk/imagenet/ilsvrc12_train_lmdb"
     batch_size: 50
     backend: LMDB
     prefetch: 2
@@ -36,7 +37,8 @@ layer {
     mean_file: "data/ilsvrc12/imagenet_mean.binaryproto"
   }
   data_param {
-    source: "/home/disk/imagenet/ilsvrc12_val_lmdb"
+    # source: "/home/disk/imagenet/ilsvrc12_val_lmdb"
+    source: "/home/disk2/ilsvrc12_val_lmdb"
     batch_size: 50
     backend: LMDB
   }

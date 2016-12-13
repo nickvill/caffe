@@ -22,6 +22,7 @@ class ConvThread : public WorkerThread<Dtype> {
   ConvThread() {
     param_solver_ = NULL;
     num_sub_solvers_ = NodeEnv::Instance()->num_sub_solvers();
+    gateway_ids_ = NodeEnv::Instance()->gateway_ids();
   }
 
   virtual ~ConvThread() { }
@@ -42,6 +43,10 @@ class ConvThread : public WorkerThread<Dtype> {
 
  protected:
   void ConvForward();
+
+  inline bool HasFwdNode() {
+    return gateway_ids_.size() > 0;
+  }
 
   int NewConvId() {
     boost::mutex::scoped_lock lock(conv_id_mutex_);
@@ -65,11 +70,18 @@ class ConvThread : public WorkerThread<Dtype> {
   // inform the parameter thread to update layer i
   void SendLayer(int layer_id);
 
+  // 
+  void SendLayer(const vector<string>& layer_vec);
+
   // do forward for a layer
   void ForwardLayer(shared_ptr<Net<Dtype> > conv_net, int layer_id);
 
   // do backward for a layer
   void BackwardLayer(Solver<Dtype> *psolver, int layer_id);
+
+  void AsyncRun();
+
+  void ForwardBackward();
 
  protected:
   typedef unordered_map<int64_t, shared_ptr<vector<shared_ptr<Msg> > > >
@@ -82,6 +94,8 @@ class ConvThread : public WorkerThread<Dtype> {
 
  protected:
   int num_sub_solvers_;
+  vector<int> gateway_ids_;
+  int num_learnable_layers_;
 
  protected:
   static int conv_id_;
@@ -147,15 +161,15 @@ class ConvParamThread : public WorkerThread<Dtype> {
   void SendActivations();
 
   // sync one layer with PS
-  void SyncLayer(int layer_id);
+  void SyncLayer(const vector<string>& layer_vec);
 
   // directly send layer to parameter server
-  void SyncLayerWithPS(const string& layer_name);
+  void SyncLayerWithPS(const vector<string>& layer_vec);
 
-  void SendGradient(const string& layer_name, int dst);
+  void SendGradient(const vector<string>& layer_vec, int dst);
 
   // reduce gradients with reduce tree
-  void ReduceLayer(const string& layer_name);
+  void ReduceLayer(const vector<string>& layer_vec);
 
   // broad cast a new version of parameter to downstream nodes
   void BroadcastParam(shared_ptr<Msg> m);

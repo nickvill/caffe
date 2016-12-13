@@ -229,7 +229,7 @@ class Msg {
     return msg_indices;
   }
 
-  void *ZmsgData(int i) {
+  void *zmsg_data(int i) {
     CHECK_LT(i, zmsg_vec_.size()) << "ERROR: vector size is "
                                   << zmsg_vec_.size()
                                   << " index is " << i;
@@ -253,14 +253,17 @@ class Msg {
   /// Allocate a new blob if the blob doen't exist
   void AppendBlob(const string& blob_name, const void *data, int sz);
 
-  int ZmsgSize(int i) {
+  // add a shared blob with zero copy
+  void AddSharedBlob(const string& blob_name, void *data, int sz);
+
+  int zmsg_size(int i) {
     CHECK_LT(i, zmsg_vec_.size()) << "ERROR: vector size is "
                                   << zmsg_vec_.size()
                                   << " index is " << i;
     return zmq_msg_size(zmsg_vec_[i]);
   }
 
-  zmq_msg_t *GetZmsg(int i) {
+  zmq_msg_t *get_zmsg(int i) {
     CHECK(i < zmsg_vec_.size()) << "Getting index " << i
                                 << " from a vector with size of: "
                                 << zmsg_vec_.size();
@@ -268,8 +271,14 @@ class Msg {
     return zmsg_vec_[i];
   }
 
-  int ZmsgCnt() {
+  int num_zmsg() {
     return zmsg_vec_.size();
+  }
+
+ protected:
+  static void free_shared_data(void *data, void *hint) {
+    // do nothing
+    return;
   }
 
  protected:

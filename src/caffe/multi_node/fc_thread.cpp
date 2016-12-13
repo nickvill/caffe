@@ -154,6 +154,29 @@ void FcThread<Dtype>::CopyInputDataFromMsg(shared_ptr<Net<Dtype> > fc_net,
   }
 }
 
+template <typename Dtype>
+Solver<Dtype> * FcThread<Dtype>::NewFCSolver() {
+  Solver<Dtype> *proot =
+                  (Solver<Dtype> *)NodeEnv::Instance()->GetRootSolver();
+  const SolverParameter& solver_param = NodeEnv::Instance()->SolverParam();
+
+  Solver<Dtype> *pfc = this->NewSolver(proot, solver_param);
+
+  if (fc_thread_root_ == NULL) {
+    fc_thread_root_ = pfc;
+  } else {
+    const vector<Blob<Dtype>*>& fc_params = pfc->net()->learnable_params();
+    const vector<Blob<Dtype>*>& root_params = fc_thread_root_->net()->learnable_params();
+
+    CHECK_EQ(fc_params.size(), root_params.size());
+    // share the diff of the newly create solver with root solver
+    for (int i = 0; i < root_params.size(); i++) {
+      CHECK_EQ(fc_params[i]->count(), root_params[i]->count());
+      fc_params[i]->ShareDiff(*root_params[i]);
+    }
+  }
+  return pfc;
+}
 
 template <typename Dtype>
 void FcThread<Dtype>::FcForward(shared_ptr<Msg> m) {
@@ -178,10 +201,7 @@ void FcThread<Dtype>::FcForward(shared_ptr<Msg> m) {
 
   // allocate a new solver if failed to find a buffered solver
   if (pfc == NULL) {
-    Solver<Dtype> *proot =
-                  (Solver<Dtype> *)NodeEnv::Instance()->GetRootSolver();
-    const SolverParameter& solver_param = NodeEnv::Instance()->SolverParam();
-    pfc = this->NewSolver(proot, solver_param);
+    pfc = NewFCSolver();
   }
 
   shared_ptr<Net<Dtype> > fc_net = pfc->net();
@@ -269,6 +289,24 @@ void FcThread<Dtype>::FcBackward(shared_ptr<Msg> m,
     Dtype loss = fc_net->output_blobs()[0]->cpu_data()[0];
     pgrp->AddLoss(loss);
   }
+
+  #if 0
+  static vector<shared_ptr<Msg> > msg_vec;
+  static vector<Solver<Dtype> *> pfc_vec;
+  msg_vec.push_back(m);
+  pfc_vec.push_back(pfc);
+
+  if (msg_vec.size() >= 4) {
+    for (int i = 0; i < msg_vec.size(); i++) {
+      this->RemoveBind(msg_vec[i]->msg_id());
+      pgrp->PushSolver(pfc_vec[i]);
+    }
+
+    msg_vec.clear();
+    pfc_vec.clear();
+  }
+  #endif
+
   this->RemoveBind(m->msg_id());
   pgrp->PushSolver(pfc);
 
@@ -305,13 +343,10 @@ void FcThread<Dtype>::SendGradients(shared_ptr<Msg> m) {
     return;
   }
 
-  Solver<Dtype> *pfc_grad = pgrp->PopSolver();
-  shared_ptr<Net<Dtype> > grad_net = pfc_grad->net();
+  shared_ptr<Net<Dtype> > grad_net = fc_thread_root_->net();
 
   Solver<Dtype> *p = NULL;
   while ((p = pgrp->PopSolver()) != NULL) {
-    ParamHelper<Dtype>::AddDiffFromNet(grad_net, p->net());
-    ParamHelper<Dtype>::ScalDiff(p->net(), (Dtype)0.0);
     this->PushFreeSolver(p);
   }
 
@@ -319,14 +354,13 @@ void FcThread<Dtype>::SendGradients(shared_ptr<Msg> m) {
     Dtype batch_loss = pgrp->total_loss();
     grad_net->output_blobs()[0]->mutable_cpu_data()[0] = batch_loss;
   }
-  this->PushFreeSolver(pfc_grad);
 
   // notify the param thread
   shared_ptr<Msg> notify(new Msg(m));
 
   notify->set_type(PUT_GRADIENT);
   notify->set_dst(ROOT_THREAD_ID);
-  notify->AppendData(&pfc_grad, sizeof(pfc_grad));
+  notify->AppendData(&fc_thread_root_, sizeof(fc_thread_root_));
 
   this->SendMsg(notify);
 }
@@ -477,7 +511,7 @@ void FcParamThread<Dtype>::ClearGroup(int grp_idx) {
 
 template <typename Dtype>
 void FcParamThread<Dtype>::AddGradients(shared_ptr<Msg> m) {
-  Solver<Dtype> *psolver = ((Solver<Dtype> **)m->ZmsgData(0))[0];
+  Solver<Dtype> *psolver = ((Solver<Dtype> **)m->zmsg_data(0))[0];
   CHECK(psolver != NULL);
 
   SGDSolver<Dtype> *proot =
@@ -642,16 +676,14 @@ int FcParamThread<Dtype>::SendParam(shared_ptr<Msg> m) {
 template <typename Dtype>
 void FcParamThread<Dtype>::Run() {
   #ifdef USE_MKL
-  int fc_omp_threads = mkl_get_max_threads();
-  mkl_set_num_threads_local(fc_omp_threads * fc_threads_);
+  int omp_threads = this->omp_cores_.size();
+  mkl_set_num_threads_local(omp_threads);
 
   int n = mkl_get_max_threads();
   LOG(INFO) << "max mkl threads in param thread: " << n;
 
   this->BindOMPThreads(this->omp_cores_);
-
-  int last_core = NodeEnv::Instance()->GetOnlineCores() - 1;
-  this->BindCore(last_core);
+  this->BindCore(this->omp_cores_[0]);
   #endif
 
   // use the root solver

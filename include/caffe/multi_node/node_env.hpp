@@ -37,7 +37,7 @@ class NodeEnv {
   //// NOTE: all the public funcations are constants
  public:
   static NodeEnv *Instance();
-  static void InitNode(void);
+  static void InitNode(int num_threads, int zmq_cores);
 
  public:
   const string& IP() { return node_ip_; }
@@ -49,6 +49,8 @@ class NodeEnv {
   const SolverParameter& SolverParam() { return solver_param_; }
 
   SolverParameter* mutable_SolverParam() { return &solver_param_; }
+
+  const int msg_thresh() { return msg_thresh_; }
 
   /// For connection with upstream nodes
   const vector<string>& sub_addrs() { return sub_addrs_; }
@@ -146,20 +148,18 @@ class NodeEnv {
     root_solver_ = proot;
   }
 
-  int GetOnlineCores() {
-    return num_online_cores_;
+  int cores_per_sock() {
+    return cores_per_sock_;
   }
 
-  int GetSockets() {
+  int num_sockets() {
     return num_sockets_;
   }
 
   // TODO: Fix me
   // return the socket index for a core
   int GetSocketIndex(int core_id) {
-    int cores_per_socket = num_online_cores_ / num_sockets_;
-
-    return core_id / cores_per_socket;
+    return core_id / cores_per_sock_;
   }
 
  public:
@@ -278,6 +278,7 @@ class NodeEnv {
   int InitModel();
   int InitIP();
   void ParseCPUInfo();
+  void InitZmqCtx(int num_threads, int zmq_cores);
 
  protected:
   void InitPSNodes();
@@ -290,7 +291,7 @@ class NodeEnv {
     num_sub_solvers_ = 0;
     root_solver_ = NULL;
     num_sockets_ = 0;
-    num_online_cores_ = 0;
+    cores_per_sock_ = 0;
   }
 
 
@@ -374,11 +375,14 @@ class NodeEnv {
   // number of sub solvers
   int num_sub_solvers_;
 
-  // online cores
-  int num_online_cores_;
+  // online cores per sock
+  int cores_per_sock_;
 
   // number of physical sockets
   int num_sockets_;
+
+  // threshhold of the minimum size of the message
+  int msg_thresh_;
 
  private:
   // get unique integer id from id server

@@ -20,25 +20,59 @@ int PSThread<Dtype>::UpdateParam(shared_ptr<Msg> m) {
     return 0;
   }
 
-  CHECK_EQ(m->num_blobs(), 1) << "expect 1 blob";
-  const string& layer_name = m->blob_info(0).blob_name();
-  int layer_id = this->GetLayerId(layer_name);
-
-  int client_idx = map_iter->second;
-  client_msgs_[layer_id][client_idx] = m;
-
-  if ((msg_clocks_[layer_id][client_idx] + 1) != m->clock()) {
-    LOG(WARNING) << "unmatched clock between ps and client " << m->src();
-  }
-
   MLOG(INFO) << "Recv gradients from: " << m->src()
-             << ", layer: " << layer_name
              << ", clock: " << m->clock();
 
-  // update clock
-  msg_clocks_[layer_id][client_idx] = m->clock();
+  vector<string> layer_vec;
+  for (int i = 0; i < m->num_blobs(); i++) {
+    const string& layer_name = m->blob_info(i).blob_name();
+    int layer_id = this->GetLayerId(layer_name);
 
-  return SendUpdates(layer_id);
+    if (!this->IsLearnable(layer_id)) {
+      continue;
+    }
+
+    int client_idx = map_iter->second;
+    client_msgs_[layer_id][client_idx] = m;
+
+    if ((msg_clocks_[layer_id][client_idx] + 1) != m->clock()) {
+      LOG(WARNING) << "unmatched clock between ps and client " << m->src()
+                   << ", clock in ps: " << msg_clocks_[layer_id][client_idx] + 1
+                   << ", clock in msg: " << m->clock();
+    }
+
+    // update clock
+    msg_clocks_[layer_id][client_idx] = m->clock();
+
+    if (ProcessUpdates(layer_id) > 0) {
+      updated_layers_++;
+      layer_vec.push_back(layer_name);
+    }
+  }
+
+  if (layer_vec.size() > 0) {
+    BroadcastLayer(layer_vec);
+  }
+
+  if (updated_layers_ >= num_learnable_layers_) {
+    #if 0
+    LOG(INFO) << "iter: " << iter_;
+    ParamHelper<Dtype>::PrintDiff(ps_solver_->net());
+    LOG(INFO) << "param:";
+    ParamHelper<Dtype>::PrintParam(ps_solver_->net());
+    #endif
+
+    ps_solver_->net()->ClearParamDiffs();
+    updated_layers_ = 0;
+    iter_++;
+    ps_solver_->IncreaseIter();
+  }
+
+  if (iter_ >= max_iter_ && test_node_ < 0) {
+    return -1;
+  }
+
+  return 0;
 }
 
 template <typename Dtype>
@@ -68,23 +102,29 @@ void PSThread<Dtype>::UpdateLayer(int layer_id) {
 }
 
 template <typename Dtype>
-void PSThread<Dtype>::BroadcastLayer(int layer_id) {
-  vector<string> layer_names;
-  layer_names.push_back(ps_solver_->net()->layer_names()[layer_id]);
-
+void PSThread<Dtype>::BroadcastLayer(const vector<string>& layer_vec) {
   const vector<string>& next_addrs = NodeEnv::Instance()->bcast_addrs();
 
   if (next_addrs.size() <= 0) {
     for (int i = 0; i < client_ids_.size(); i++) {
-      SendParam(ps_solver_->net(), layer_names, client_ids_[i], iter_ + 1);
+      SendParam(ps_solver_->net(), layer_vec, client_ids_[i], iter_ + 1);
     }
   } else {
-    SendParam(ps_solver_->net(), layer_names, -1, iter_ + 1);
+    SendParam(ps_solver_->net(), layer_vec, -1, iter_ + 1);
   }
 }
 
+
 template <typename Dtype>
-int PSThread<Dtype>::SendUpdates(int layer_id) {
+void PSThread<Dtype>::BroadcastLayer(int layer_id) {
+  vector<string> layer_vec;
+  layer_vec.push_back(ps_solver_->net()->layer_names()[layer_id]);
+
+  BroadcastLayer(layer_vec);
+}
+
+template <typename Dtype>
+int PSThread<Dtype>::ProcessUpdates(int layer_id) {
   CHECK_EQ(staleness_, 0) << "only support sync mode";
 
   const vector<int>& clock_vec = msg_clocks_[layer_id];
@@ -107,29 +147,9 @@ int PSThread<Dtype>::SendUpdates(int layer_id) {
                                  (Dtype)(1.0 / (Dtype)num_workers_),
                                  layer_id);
     UpdateLayer(layer_id);
-    BroadcastLayer(layer_id);
-    updated_layers_++;
   }
 
-  if (updated_layers_ >= num_learnable_layers_) {
-    #if 0
-    LOG(INFO) << "iter: " << iter_;
-    ParamHelper<Dtype>::PrintDiff(ps_solver_->net());
-    LOG(INFO) << "param:";
-    ParamHelper<Dtype>::PrintParam(ps_solver_->net());
-    #endif
-
-    ps_solver_->net()->ClearParamDiffs();
-    updated_layers_ = 0;
-    iter_++;
-    ps_solver_->IncreaseIter();
-  }
-
-  if (iter_ >= max_iter_ && test_node_ < 0) {
-    return -1;
-  }
-
-  return 0;
+  return num_updates;
 }
 
 template <typename Dtype>

@@ -27,7 +27,7 @@ class CPUDispatcher {
   CPUDispatcher() { }
 
   // statically assign threads to cpu cores
-  void Dispatch(vector<vector<int> > *pthread_arr);
+  void Dispatch(vector<vector<int> > *pthread_arr, int num_threads);
 
  protected:
   // parse CPU info from /proc/cpuinfo

@@ -45,12 +45,11 @@ void WorkerThread<Dtype>::BindCore(int core_id) {
 
 template <typename Dtype>
 void WorkerThread<Dtype>::BindOMPThreads(const vector<int>& core_list) {
+#if (defined USE_MKL) && (defined _OPENMP)
   int omp_threads = mkl_get_max_threads();
-
   CHECK_EQ(omp_threads, core_list.size())
                 << "fail to bind omp threads";
 
-#if (defined USE_MKL) && (defined _OPENMP)
   #pragma omp parallel num_threads(omp_threads)
   {
     int tid = omp_get_thread_num();

@@ -32,6 +32,7 @@ int ConvClient<Dtype>::Init() {
     fwd_socks_[i] = this->ConnectNode(fc_fwd_addrs_[i], fw_id);
   }
 
+
   // create solver
   Caffe::set_root_solver(true);
 
@@ -123,6 +124,29 @@ int ConvClient<Dtype>::Init() {
   this->threads_[this->param_thread_index_].reset(
                                    new ConvParamThread<Dtype>(ps_clocks));
 
+  vector<vector<int> > omp_cores;
+  this->DispatchCPU(&omp_cores, this->nworkers_);
+  const vector<int>& free_cores = omp_cores[this->nworkers_];
+  CHECK_GE(free_cores.size(), 2)
+            << "at least 2 free cores for dispatch thread";
+  int param_core_idx = free_cores[0];
+  int route_core_idx = free_cores[1];
+
+  LOG(INFO) << "route core: " << route_core_idx
+            << ", param core: " << param_core_idx;
+
+  for (int i = 0; i < this->nworkers_; i++) {
+    this->threads_[i]->SetOMPCores(omp_cores[i]);
+  }
+
+  vector<int> param_core_list;
+  param_core_list.push_back(param_core_idx);
+  this->threads_[this->param_thread_index_]->SetOMPCores(param_core_list);
+
+  vector<int> core_list;
+  core_list.push_back(route_core_idx);
+  this->BindCores(core_list);
+
   return this->StartThreads();
 }
 
@@ -164,10 +188,8 @@ void ConvClient<Dtype>::SendOutMsg(shared_ptr<Msg> m) {
     this->Enqueue(this->param_thread_index_, m);
   } else if (m->dst() == WORKER_BCAST) {
     // broadcast the message to all the workers
-    for (int i = 0; i < this->nthreads_; i++) {
-      if (i != this->param_thread_index_) {
-        this->Enqueue(i, m);
-      }
+    for (int i = 0; i < this->nworkers_; i++) {
+      this->Enqueue(i, m);
     }
   } else {
     // look up the routing table
@@ -177,6 +199,11 @@ void ConvClient<Dtype>::SendOutMsg(shared_ptr<Msg> m) {
           << "cannot find socket for id: " << m->dst();
     iter->second->SendMsg(m);
   }
+}
+
+template <typename Dtype>
+void ConvClient<Dtype>::RouteParamMsg(shared_ptr<Msg> m) {
+  this->Enqueue(this->param_thread_index_, m);
 }
 
 template <typename Dtype>
@@ -223,7 +250,7 @@ int ConvClient<Dtype>::RouteMsg() {
       shared_ptr<Msg> m = ps_clients_[i]->RecvMsg(true);
 
       // forwarding the message to Param thread
-      this->Enqueue(this->param_thread_index_, m);
+      RouteParamMsg(m);
     }
   }
 
@@ -231,7 +258,7 @@ int ConvClient<Dtype>::RouteMsg() {
     shared_ptr<Msg> m = this->sock_back_->RecvMsg(true);
 
     // pass this message to praram thread
-    this->Enqueue(this->param_thread_index_, m);
+    RouteParamMsg(m);
   }
 
   int poll_index = this->sub_sock_index_;
@@ -240,7 +267,7 @@ int ConvClient<Dtype>::RouteMsg() {
       shared_ptr<Msg> m = this->vec_sub_sock_[i]->RecvMsg(true);
 
       // pass this message to param thread
-      this->Enqueue(this->param_thread_index_, m);
+      RouteParamMsg(m);
     }
   }
 

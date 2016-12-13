@@ -324,6 +324,9 @@ int ModelMap<Dtype>::PrepareConvMsg() {
     m->set_type(GET_TRAIN_MODEL);
     m->set_dst(conv_routes_[i].node_info().node_id());
 
+    // set message threshhodl to conv. nodes
+    conv_routes_[i].set_msg_thresh(msg_thresh_);
+
     string rt_str;
     conv_routes_[i].SerializeToString(&rt_str);
     m->AppendData(rt_str.data(), rt_str.length());
@@ -484,7 +487,7 @@ int ModelMap<Dtype>::PrepareRoutes() {
     }
   }
 
-  CHECK_GT(fc_gateways_.size(), 0) << "ERROR: no root fc nodes are found";
+  // CHECK_GT(fc_gateways_.size(), 0) << "ERROR: no root fc nodes are found";
 
   // set as gateway nodes
   for (int i = 0; i < fc_gateways_.size(); i++) {
@@ -810,8 +813,8 @@ int ModelMap<Dtype>::UpdateWorkers() {
 template <typename Dtype>
 int ModelMap<Dtype>::ProcessTests(shared_ptr<Msg> m) {
   shared_ptr<ModelRequest> rq(new ModelRequest());
-  rq->ParseFromString(string(reinterpret_cast<char *>(m->ZmsgData(0)),
-                             m->ZmsgSize(0)));
+  rq->ParseFromString(string(reinterpret_cast<char *>(m->zmsg_data(0)),
+                             m->zmsg_size(0)));
 
   test_requests_.push_back(rq);
 
@@ -826,8 +829,8 @@ int ModelMap<Dtype>::ProcessTests(shared_ptr<Msg> m) {
 template <typename Dtype>
 int ModelMap<Dtype>::ProcessConv(shared_ptr<Msg> m) {
   shared_ptr<ModelRequest> rq(new ModelRequest());
-  rq->ParseFromString(string(reinterpret_cast<char *>(m->ZmsgData(0)),
-                             m->ZmsgSize(0)));
+  rq->ParseFromString(string(reinterpret_cast<char *>(m->zmsg_data(0)),
+                             m->zmsg_size(0)));
 
   if (conv_requests_.size() >= num_workers_) {
     LOG(WARNING) << "too many clients";
@@ -851,8 +854,8 @@ int ModelMap<Dtype>::ProcessConv(shared_ptr<Msg> m) {
 template <typename Dtype>
 int ModelMap<Dtype>::ProcessModels(shared_ptr<Msg> m) {
   shared_ptr<ModelRequest> rq(new ModelRequest());
-  rq->ParseFromString(string(reinterpret_cast<char *>(m->ZmsgData(0)),
-                             m->ZmsgSize(0)));
+  rq->ParseFromString(string(reinterpret_cast<char *>(m->zmsg_data(0)),
+                             m->zmsg_size(0)));
 
   AddModelRequest(rq);
 
@@ -876,12 +879,12 @@ int ModelMap<Dtype>::ProcessModels(shared_ptr<Msg> m) {
 
 template <typename Dtype>
 int ModelMap<Dtype>::GetModel(shared_ptr<Msg> m) {
-  CHECK_GT(m->ZmsgCnt(), 0);
+  CHECK_GT(m->num_zmsg(), 0);
 
   shared_ptr<ModelRequest> rq(new ModelRequest());
   // route request is stored in the first message
-  rq->ParseFromString(string(reinterpret_cast<char *>(m->ZmsgData(0)),
-                             m->ZmsgSize(0)));
+  rq->ParseFromString(string(reinterpret_cast<char *>(m->zmsg_data(0)),
+                             m->zmsg_size(0)));
 
   LOG(INFO) << "Get Model Request: " << std::endl << rq->DebugString();
 

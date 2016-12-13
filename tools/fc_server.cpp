@@ -6,8 +6,11 @@
 #include "caffe/multi_node/fc_node.hpp"
 
 using namespace caffe; // NOLINT (build namespace)
+using caffe::Caffe;
 
 DEFINE_int32(threads, 1, "number of work threads in fc server");
+DEFINE_int32(zmq_cores, 2, "number of cores used by zeromq"
+                            "0 means don't bind zmq threads to cores");
 
 DEFINE_int32(omp_param_threads, 0, "number of OMP threads in param thread");
 
@@ -43,8 +46,11 @@ void fc_server_thread() {
 }
 
 int main(int argc, char** argv) {
+  FLAGS_alsologtostderr = 1;
   google::InstallFailureSignalHandler();
+  google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  Caffe::set_mode(Caffe::CPU);
 
   string id_server_addr = "tcp://";
   id_server_addr += FLAGS_ip;
@@ -61,7 +67,7 @@ int main(int argc, char** argv) {
   NodeEnv::set_request_file(FLAGS_request);
   NodeEnv::set_node_role(FC_NODE);
 
-  NodeEnv::InitNode();
+  NodeEnv::InitNode(FLAGS_threads, FLAGS_zmq_cores);
 
   fc_server_thread();
 

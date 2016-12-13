@@ -159,39 +159,53 @@ class ParamHelper {
         shared_ptr<Blob<Dtype> > pblob = l->blobs()[j];
         int m_idx = bi.msg_index(j);
 
-        CHECK_EQ(pblob->count() * sizeof(Dtype), m->ZmsgSize(m_idx));
+        CHECK_EQ(pblob->count() * sizeof(Dtype), m->zmsg_size(m_idx));
         caffe_axpy<Dtype>(pblob->count(), 1.0,
-                         reinterpret_cast<Dtype *>(m->ZmsgData(m_idx)),
+                         reinterpret_cast<Dtype *>(m->zmsg_data(m_idx)),
                          pblob->mutable_cpu_diff());
       }
     }
   }
 
-  enum Action { COPY_DATA, COPY_DIFF };
+  enum Action { COPY_DATA, COPY_DIFF, SHARE_DATA, SHARE_DIFF };
 
 
   // Copy layer parameters to a message
   static int CopyParamDataToMsg(shared_ptr<Net<Dtype> > net,
                                 const vector<string>& layer_names,
                                 shared_ptr<Msg> m) {
-    return CopyParamToMsg(net, layer_names, m, COPY_DATA, 0, 1);
+    return ParamToMsg(net, layer_names, m, COPY_DATA, 0, 1);
   }
 
   static int CopyParamDataToMsg(shared_ptr<Net<Dtype> > net,
                                   const vector<string>& layer_names,
                                   shared_ptr<Msg> m,
                                   int pos, int num_splits) {
-    return CopyParamToMsg(net, layer_names, m, COPY_DATA, pos, num_splits);
+    return ParamToMsg(net, layer_names, m, COPY_DATA, pos, num_splits);
   }
 
   /// Copy layer parameter diff to a message
   static int CopyParamDiffToMsg(shared_ptr<Net<Dtype> > net,
                                 const vector<string>& layer_names,
                                 shared_ptr<Msg> m) {
-    return CopyParamToMsg(net, layer_names, m, COPY_DIFF, 0, 1);
+    return ParamToMsg(net, layer_names, m, COPY_DIFF, 0, 1);
   }
 
-  static int CopyParamToMsg(shared_ptr<Net<Dtype> > net,
+  /// share layer parameter diff to a message
+  static int ShareParamDiffToMsg(shared_ptr<Net<Dtype> > net,
+                                const vector<string>& layer_names,
+                                shared_ptr<Msg> m) {
+    return ParamToMsg(net, layer_names, m, SHARE_DIFF, 0, 1);
+  }
+
+  /// share layer parameter data to a message
+  static int ShareParamDataToMsg(shared_ptr<Net<Dtype> > net,
+                                const vector<string>& layer_names,
+                                shared_ptr<Msg> m) {
+    return ParamToMsg(net, layer_names, m, SHARE_DATA, 0, 1);
+  }
+
+  static int ParamToMsg(shared_ptr<Net<Dtype> > net,
                               const vector<string>& layer_names,
                               shared_ptr<Msg> m,
                               Action act,
@@ -217,6 +231,12 @@ class ParamHelper {
           m->AppendBlob(layer_name,
                         pblob->cpu_data() + offset,
                         segment_len * sizeof(Dtype));
+        } else if (act == SHARE_DIFF) {
+          m->AddSharedBlob(layer_name, pblob->mutable_cpu_diff() + offset,
+                           segment_len * sizeof(Dtype));
+        } else if (act == SHARE_DATA) {
+          m->AddSharedBlob(layer_name, pblob->mutable_cpu_data() + offset,
+                           segment_len * sizeof(Dtype));
         } else {
           LOG(ERROR) << "unknown action: " << act;
         }
@@ -248,15 +268,15 @@ class ParamHelper {
         shared_ptr<Blob<Dtype> > pblob = l->blobs()[j];
         int m_idx = bi.msg_index(j);
 
-        CHECK_EQ(pblob->count() * sizeof(Dtype), m->ZmsgSize(m_idx));
+        CHECK_EQ(pblob->count() * sizeof(Dtype), m->zmsg_size(m_idx));
 
         if (act == COPY_DIFF) {
           BlasCopy(pblob->count(),
-                   reinterpret_cast<Dtype *>(m->ZmsgData(m_idx)),
+                   reinterpret_cast<Dtype *>(m->zmsg_data(m_idx)),
                    pblob->mutable_cpu_diff());
         } else if (act == COPY_DATA) {
           BlasCopy(pblob->count(),
-                   reinterpret_cast<Dtype *>(m->ZmsgData(m_idx)),
+                   reinterpret_cast<Dtype *>(m->zmsg_data(m_idx)),
                    pblob->mutable_cpu_data());
         } else {
           LOG(ERROR) << "unknown action: " << act;
@@ -341,7 +361,7 @@ class ParamHelper {
 
     vector<Dtype *> msg_data;
     for (int i = 0; i < msg_indices.size(); i++) {
-      Dtype *pdata = reinterpret_cast<Dtype *>(m->ZmsgData(msg_indices[i]));
+      Dtype *pdata = reinterpret_cast<Dtype *>(m->zmsg_data(msg_indices[i]));
       msg_data.push_back(pdata);
     }
     int stride = blob_stride(pblob);
@@ -349,7 +369,7 @@ class ParamHelper {
     CHECK_EQ(stride % msg_data.size(), 0);
     int segment_len = stride / msg_data.size();
 
-    int msg_size = m->ZmsgSize(msg_indices[0]);
+    int msg_size = m->zmsg_size(msg_indices[0]);
     msg_size /= sizeof(Dtype);
     CHECK_EQ(msg_size * msg_data.size(), pblob->count());
 
@@ -615,10 +635,10 @@ class ParamHelper {
 
       CHECK_EQ(bi.msg_index_size(), 1) << "Couldn't support partial blobs";
       int msg_idx = bi.msg_index(0);
-      int msg_sz = m->ZmsgSize(msg_idx);
+      int msg_sz = m->zmsg_size(msg_idx);
 
       CHECK_EQ(blob_sz * nets.size(), msg_sz);
-      Dtype *p = reinterpret_cast<Dtype *>(m->ZmsgData(msg_idx));
+      Dtype *p = reinterpret_cast<Dtype *>(m->zmsg_data(msg_idx));
 
       for (int j = 0; j < nets.size(); j++) {
         shared_ptr<Blob<Dtype> > dst_blob = nets[j]->blob_by_name(blob_name);

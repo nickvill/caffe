@@ -6,14 +6,23 @@
 namespace caffe {
 
 void *SkSock::zmq_ctx_ = NULL;
+
 boost::mutex SkSock::zmq_init_mutex_;
+
 int SkSock::inited_cnt_ = 0;
+
+vector<int> SkSock::zmq_cpu_cores_;
 
 void SkSock::InitZmq(void) {
   boost::mutex::scoped_lock lock(zmq_init_mutex_);
 
   if (0 == inited_cnt_) {
-      zmq_ctx_ = zmq_ctx_new();
+    zmq_ctx_ = zmq_ctx_new();
+
+    for (int i = 0; i < zmq_cpu_cores_.size(); i++) {
+      int rc = zmq_ctx_set(zmq_ctx_, ZMQ_ADD_CPU_CORE, zmq_cpu_cores_[i]);
+      CHECK_EQ(rc, 0);
+    }
   }
 
   inited_cnt_++;
@@ -40,19 +49,19 @@ int SkSock::SendMsg(shared_ptr<Msg> msg) {
     CHECK_GT(msg->src(), 0) << "Message source must be set for dealer socket";
   }
 
-  if (msg->ZmsgCnt() <= 0) {
-    LOG(WARNING) << "Cannot send message with length " << msg->ZmsgCnt();
+  if (msg->num_zmsg() <= 0) {
+    LOG(WARNING) << "Cannot send message with length " << msg->num_zmsg();
 
     return -1;
   }
 
   SendHeader(msg);
 
-  for (int i = 0; i < msg->ZmsgCnt() - 1; i++) {
-    zmq_msg_send(msg->GetZmsg(i), sock_, ZMQ_SNDMORE);
+  for (int i = 0; i < msg->num_zmsg() - 1; i++) {
+    zmq_msg_send(msg->get_zmsg(i), sock_, ZMQ_SNDMORE);
   }
 
-  zmq_msg_send(msg->GetZmsg(msg->ZmsgCnt() - 1), sock_, 0);
+  zmq_msg_send(msg->get_zmsg(msg->num_zmsg() - 1), sock_, 0);
 
   return 0;
 }

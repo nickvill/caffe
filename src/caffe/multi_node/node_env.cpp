@@ -3,6 +3,10 @@
 
 #include "caffe/multi_node/node_env.hpp"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace caffe {
 
 char NodeEnv::id_server_addr_[MAX_STR_LEN];
@@ -16,7 +20,7 @@ NodeEnv* NodeEnv::Instance() {
   return &node_env;
 }
 
-void NodeEnv::InitNode(void) {
+void NodeEnv::InitNode(int num_threads, int zmq_cores) {
   // check enviroment settings
   CHECK_GT(strlen(id_server_addr_), 0) << "Need to set id server address";
   CHECK_GT(strlen(model_server_addr_), 0) << "Need to set model server addr";
@@ -24,6 +28,7 @@ void NodeEnv::InitNode(void) {
   CHECK(node_role_ != INVALID_ROLE) << "Need to set node role";
 
   NodeEnv::Instance()->ParseCPUInfo();
+  NodeEnv::Instance()->InitZmqCtx(num_threads, zmq_cores);
   NodeEnv::Instance()->InitIP();
   NodeEnv::Instance()->InitNodeID();
   NodeEnv::Instance()->InitModel();
@@ -31,7 +36,6 @@ void NodeEnv::InitNode(void) {
 
 int NodeEnv::InitNodeID() {
   sk_id_req_.reset(new SkSock(ZMQ_REQ));
-
   sk_id_req_->Connect(string(id_server_addr_));
   shared_ptr<Msg> m(new Msg());
 
@@ -43,7 +47,7 @@ int NodeEnv::InitNodeID() {
 
   shared_ptr<Msg> r = sk_id_req_->RecvMsg(true);
 
-  int id = *(reinterpret_cast<int *>(r->ZmsgData(0)));
+  int id = *(reinterpret_cast<int *>(r->zmsg_data(0)));
 
   LOG(INFO) << "Got new id: " << id;
 
@@ -52,10 +56,34 @@ int NodeEnv::InitNodeID() {
   return id;
 }
 
+void NodeEnv::InitZmqCtx(int num_threads, int zmq_cores) {
+  if (zmq_cores <= 0) {
+    return;
+  }
+
+  int omp_thread = 1;
+  #ifdef _OPENMP
+  omp_thread = omp_get_max_threads();
+  #endif
+
+  int work_cores = num_threads * omp_thread;
+  int total_cores = num_sockets_ * cores_per_sock_;
+
+  CHECK_GT(total_cores, work_cores + zmq_cores) << "Too many cores used";
+
+  vector<int> cpu_cores;
+  for (int i = 0; i < zmq_cores; i++) {
+    // always use the last cores
+    cpu_cores.push_back(total_cores - 1 - i);
+  }
+
+  SkSock::set_cpu_cores(cpu_cores);
+}
+
 void NodeEnv::ParseCPUInfo() {
   // TODO: fix it using a parser
   FILE *fpsock = popen(
-      "cat /proc/cpuinfo |grep \"physical id\" |sort -n | uniq | wc -l",
+      "cat /proc/cpuinfo |grep \"physical id\" | sort -n | uniq | wc -l",
       "r");
 
   CHECK(fpsock != NULL) << "fail to get sockets";
@@ -64,14 +92,15 @@ void NodeEnv::ParseCPUInfo() {
   pclose(fpsock);
 
   FILE *fpcores = popen(
-        "cat /proc/cpuinfo |grep \"core id\" |wc -l",
+        "cat /proc/cpuinfo | grep \"core id\" | sort -n | uniq | wc -l",
         "r");
   CHECK(fpcores != NULL) << "fail to get cores";
-  r = fscanf(fpcores, "%d", &num_online_cores_);
+  r = fscanf(fpcores, "%d", &cores_per_sock_);
   CHECK_EQ(r, 1) << "fail to read core numbers";
+  pclose(fpcores);
 
   LOG(INFO) << "number of sockets: " << num_sockets_
-            << ", number of cores: " << num_online_cores_;
+            << ", number of cores sock: " << cores_per_sock_;
 }
 
 int NodeEnv::InitIP() {
@@ -145,10 +174,10 @@ int NodeEnv::InitModel() {
 
   shared_ptr<Msg> r = dealer->RecvMsg(true);
 
-  LOG(INFO) << "received message count: " << r->ZmsgCnt();
+  LOG(INFO) << "received message count: " << r->num_zmsg();
 
-  rt_info_.ParseFromString(string(reinterpret_cast<char *>(r->ZmsgData(0)),
-                           r->ZmsgSize(0) ));
+  rt_info_.ParseFromString(string(reinterpret_cast<char *>(r->zmsg_data(0)),
+                           r->zmsg_size(0) ));
   solver_param_.CopyFrom(rt_info_.solver_param());
 
   LOG(INFO) << "received route info: " << std::endl << rt_info_.DebugString();
@@ -224,6 +253,8 @@ int NodeEnv::InitModel() {
   num_workers_ = rt_info_.num_workers();
 
   num_sub_solvers_ = rt_info_.num_sub_solvers();
+
+  msg_thresh_ = rt_info_.msg_thresh();
 
   return 0;
 }

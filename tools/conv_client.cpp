@@ -16,10 +16,12 @@ using caffe::NodeEnv;
 using caffe::CONV_CLIENT;
 using caffe::ModelRequest;
 using caffe::ConvClient;
+using caffe::Caffe;
 // using caffe::client;
 
-
 DEFINE_int32(threads, 1, "number of convolution client threads");
+DEFINE_int32(zmq_cores, 2, "number of cores used by zeromq"
+                            "0 means don't bind zmq threads to cores");
 
 DEFINE_string(ip, "127.0.0.1", "the ip of the id and model server");
 DEFINE_string(net_if, "", "the network interface to be used");
@@ -30,8 +32,11 @@ DEFINE_int32(pub_port, 3001, "the tcp port to do broadcast");
 DEFINE_int32(route_port, 3002, "the tcp port to listen");
 
 int main(int argc, char** argv) {
+  FLAGS_alsologtostderr = 1;
   google::InstallFailureSignalHandler();
+  google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  Caffe::set_mode(Caffe::CPU);
 
   string id_server_addr = "tcp://";
   id_server_addr += FLAGS_ip;
@@ -56,7 +61,7 @@ int main(int argc, char** argv) {
   }
   NodeEnv::set_model_request(rq);
 
-  NodeEnv::InitNode();
+  NodeEnv::InitNode(FLAGS_threads, FLAGS_zmq_cores);
 
   LOG(INFO) << "conv node id: " << NodeEnv::Instance()->ID();
 

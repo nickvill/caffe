@@ -5,8 +5,8 @@ name: "InceptionNetwork"
   name: "data"
   type: "Data"
   data_param {
-    source: "/home/disk/imagenet/ilsvrc12_train_lmdb"
-    batch_size: 32
+    source: "/home/disk2/ilsvrc2012trainlmdbseg"
+    batch_size: 128
     backend: LMDB
   }
   include {
@@ -29,7 +29,7 @@ layer {
   name: "data"
   type: "Data"
   data_param {
-    source: "/home/disk/imagenet/ilsvrc12_val_lmdb"
+    source: "/home/disk2/ilsvrc12_val_lmdb"
     batch_size: 50
     backend: LMDB
   }

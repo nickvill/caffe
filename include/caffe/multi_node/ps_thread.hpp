@@ -35,7 +35,7 @@ class PSThread : public WorkerThread<Dtype> {
   virtual void Run();
 
  protected:
-  int SendUpdates(int layer_id);
+  int ProcessUpdates(int layer_id);
 
   int GetBatchSize(shared_ptr<Net<Dtype> > net) {
     const vector<Blob<Dtype>*>& out_blobs = net->output_blobs();
@@ -49,6 +49,8 @@ class PSThread : public WorkerThread<Dtype> {
 
   /// broadcast parameters of a layer
   void BroadcastLayer(int layer_id);
+
+  void BroadcastLayer(const vector<string>& layer_vec);
 
   /// register a new client to PS
   void RegisterNode(shared_ptr<Msg> m);

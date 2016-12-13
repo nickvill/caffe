@@ -1,10 +1,8 @@
 
 # conv clients
 
-start_layer : "data"
-end_layers : "loss1/loss"
-end_layers : "loss2/loss"
-end_layers : "loss3/loss"
+start_layer : "cifar"
+end_layers : "loss"
 num_splits : 1
 
 node_info {

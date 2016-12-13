@@ -20,9 +20,10 @@ namespace caffe {
 template <typename Dtype>
 class ModelMap {
  public:
-  ModelMap(const string full_solver, int nworkers, int sub_solvers) {
+  ModelMap(const string full_solver, int nworkers, int sub_solvers, int msg_thresh) {
     ReadProtoFromTextFileOrDie(full_solver, &solver_param_);
 
+    msg_thresh_ = msg_thresh;
     // init test solver
     // test node should run in the same machine with model server
     test_solver_.CopyFrom(solver_param_);
@@ -309,6 +310,9 @@ class ModelMap {
 
   // routing info for conv nodes
   vector<RouteInfo> conv_routes_;
+
+  // minimum size of zeromq messages
+  int msg_thresh_;
 
 DISABLE_COPY_AND_ASSIGN(ModelMap);
 };

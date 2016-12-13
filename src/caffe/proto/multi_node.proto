@@ -98,6 +98,9 @@ message RouteInfo {
 
   // number of sub solvers per batch
   optional int32 num_sub_solvers = 10 [default = 0];
+
+  // threshhold of the minimum size of zmq message, default 1k
+  optional int32 msg_thresh = 11 [default = 1024];
 }
 
 

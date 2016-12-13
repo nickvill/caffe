@@ -189,11 +189,15 @@ class FcThread : public FcWorker<Dtype> {
   FcThread() {
     clock_ = 0;
     staleness_ = 0;
+    fc_thread_root_ = NULL;
   }
 
   virtual ~FcThread() { }
 
   virtual void Run();
+
+ protected:
+  Solver<Dtype> *NewFCSolver();
 
  protected:
   typedef typename unordered_map<int,
@@ -235,6 +239,9 @@ class FcThread : public FcWorker<Dtype> {
 
   // map a clock to a group of solvers
   unordered_map<int, shared_ptr<SolverGroup<Dtype> > > clock_to_solver_grp_;
+
+  // each fc thread has a root solver
+  Solver<Dtype> *fc_thread_root_;
 
 
 DISABLE_COPY_AND_ASSIGN(FcThread);

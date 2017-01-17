@@ -3,8 +3,9 @@
 
 #ifdef USE_MKL
 
-#include <mkl.h>
-
+#include <mkl_dnn.h>
+#include <mkl_service.h>
+#include <mkl_cblas.h>
 #else  // If use MKL, simply include the MKL header
 
 extern "C" {

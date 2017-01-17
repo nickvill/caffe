@@ -353,11 +353,16 @@ COMMON_FLAGS += -DMULTI_NODE_DEBUG=$(MULTI_NODE_DEBUG)
 BLAS ?= atlas
 ifeq ($(BLAS), mkl)
 	# MKL
-	LIBRARIES += mkl_rt
 	COMMON_FLAGS += -DUSE_MKL
 	MKL_DIR ?= $(MKLROOT)
 	BLAS_INCLUDE ?= $(MKL_DIR)/include
 	BLAS_LIB ?= $(MKL_DIR)/lib $(MKL_DIR)/lib/intel64
+	HAS_MKLRT := $(shell find $(MKL_DIR) -name libmkl_rt.so)
+	ifneq (,$(HAS_MKLRT))
+		LIBRARIES += mkl_rt
+	else
+		LIBRARIES += mklml_intel  mklthread_intel
+	endif
 
 	# detect support for mkl2017 primitives
 	ifneq ("$(wildcard $(BLAS_INCLUDE)/mkl_dnn.h)","")

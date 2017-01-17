@@ -3,7 +3,8 @@
 #define MULTI_NODE_WORKER_THREAD_H_
 
 #ifdef USE_MKL
-#include <mkl.h>
+#include <mkl_dnn.h>
+#include <mkl_service.h>
 #endif
 
 #ifdef _OPENMP

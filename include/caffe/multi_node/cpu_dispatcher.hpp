@@ -3,7 +3,8 @@
 #define MULTI_NODE_CPU_DISPATCHER_HPP_
 
 #ifdef USE_MKL
-#include <mkl.h>
+#include <mkl_dnn.h>
+#include <mkl_service.h>
 #endif
 
 #ifdef _OPENMP

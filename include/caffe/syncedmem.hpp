@@ -4,7 +4,9 @@
 #include <cstdlib>
 
 #ifdef USE_MKL
-  #include <mkl.h>
+  #include <mkl_dnn.h>
+  #include <mkl_blas.h>
+  #include <mkl_service.h>
 #endif
 
 #include "boost/thread/mutex.hpp"

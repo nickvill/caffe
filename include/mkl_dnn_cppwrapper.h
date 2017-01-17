@@ -6,6 +6,7 @@
 
 #include "mkl_dnn.h"
 #include "mkl_dnn_types.h"
+#include "mkl_version.h"
 
 #define TEMPLATE_PREFIX template <typename Dtype> inline
 #define SPEC_PREFIX template <> inline

@@ -20,11 +20,11 @@ caffe_option(MKL_MULTI_THREADED  "Use multi-threading"   ON IF NOT MKL_USE_SINGL
 
 # ---[ Root folders
 set(INTEL_ROOT "/opt/intel" CACHE PATH "Folder contains intel libs")
-find_path(MKL_ROOT include/mkl.h PATHS $ENV{MKL_ROOT} ${INTEL_ROOT}/mkl
+find_path(MKL_ROOT include/mkl_dnn.h PATHS $ENV{MKL_ROOT} ${INTEL_ROOT}/mkl
                                    DOC "Folder contains MKL")
 
 # ---[ Find include dir
-find_path(MKL_INCLUDE_DIR mkl.h PATHS ${MKL_ROOT} PATH_SUFFIXES include)
+find_path(MKL_INCLUDE_DIR mkl_dnn.h PATHS ${MKL_ROOT} PATH_SUFFIXES include)
 set(__looked_for MKL_INCLUDE_DIR)
 
 # ---[ Find libraries

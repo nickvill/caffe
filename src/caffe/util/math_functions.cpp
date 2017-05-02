@@ -107,6 +107,8 @@ uint_tp* Y);
 template void caffe_cpu_copy<float>(const int_tp N, const float* X, float* Y);
 template void caffe_cpu_copy<double>(const int_tp N, const double* X,
                                      double* Y);
+template void caffe_cpu_copy<bool>(const int_tp N, const bool* X,
+                                     bool* Y);
 
 template<typename Dtype>
 void caffe_copy(const int_tp N, const Dtype* X, Dtype* Y) {
@@ -131,6 +133,7 @@ template void caffe_copy<uint_tp>(const int_tp N, const uint_tp* X,
 uint_tp* Y);
 template void caffe_copy<float>(const int_tp N, const float* X, float* Y);
 template void caffe_copy<double>(const int_tp N, const double* X, double* Y);
+template void caffe_copy<bool>(const int N, const bool* X, bool* Y);
 
 template<>
 void caffe_scal<float>(const int_tp N, const float alpha, float *X) {

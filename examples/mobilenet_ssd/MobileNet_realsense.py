@@ -18,10 +18,10 @@ import stat
 import subprocess 
 import time
 
-caffe.set_device(1)
+caffe.set_device(0)
 caffe.set_mode_gpu()
 
-directory = '/home/fla-objdet/code/clCaffe'
+directory = '/home/fla/code/clCaffe'
 caffe_root = directory
 
 net_file=   '{}/examples/mobilenet_ssd/MobileNet_VOC0712_SSD_300x300.prototxt'.format(directory)  
@@ -48,7 +48,8 @@ class MobileNet_SSD(object):
 
 	def __init__(self):
 
-		self.image_sub = rospy.Subscriber('/realsense/r200/color/image_raw', Image, self.image_cb, queue_size = 2)
+		self.image_sub = rospy.Subscriber('/realsense/r200/color/image_raw', Image, self.image_cb, queue_size = 1)
+		self.image_pub = rospy.Publisher('obj_det', Image, queue_size=1)
 		self.bridge = CvBridge()
 		self.count = 0 
 		self.desired_fps = 1
@@ -63,9 +64,14 @@ class MobileNet_SSD(object):
 
 		start_time = time.time()
 		obj_det = self.detect(cv_image)
-		cv2.imshow('SSD', obj_det)
+		# cv2.imshow('SSD', obj_det)
+		
+		try:
+			self.image_pub.publish(self.bridge.cv2_to_imgmsg(obj_det, 'bgr8'))
+		except CvBridgeError as e:
+			print e
 		# cv2.imshow('Test', cv_image)
-		cv2.waitKey(1)
+		# cv2.waitKey(1)
 		end_time = time.time()
 		comp_time = end_time - start_time
 		

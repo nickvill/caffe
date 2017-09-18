@@ -18,10 +18,10 @@ import stat
 import subprocess 
 import time
 
-caffe.set_device(0)
+caffe.set_device(1)
 caffe.set_mode_gpu()
 
-directory = '/home/fla/code/clCaffe'
+directory = '/home/fla-objdet/code/clCaffe'
 caffe_root = directory
 
 net_file=   '{}/examples/mobilenet_ssd/MobileNet_VOC0712_SSD_300x300.prototxt'.format(directory)  
@@ -44,11 +44,13 @@ CLASSES = ('background',
            'motorbike', 'person', 'pottedplant',
            'sheep', 'sofa', 'train', 'tvmonitor')
 
+
 class MobileNet_SSD(object):
 
 	def __init__(self):
 
-		self.image_sub = rospy.Subscriber('/realsense/r200/color/image_raw', Image, self.image_cb, queue_size = 1)
+		# self.image_sub = rospy.Subscriber('/realsense/r200/color/image_raw', Image, self.image_cb, queue_size = 1)
+		self.image_sub = rospy.Subscriber('throttled_msgs', Image, self.image_cb, queue_size = 1)
 		self.image_pub = rospy.Publisher('obj_det', Image, queue_size=1)
 		self.bridge = CvBridge()
 		self.count = 0 
@@ -56,6 +58,8 @@ class MobileNet_SSD(object):
 		self.sleep = False
 
 	def image_cb(self, msg):
+
+		# print 'realsense img time:', msg.header.stamp
 
 		try:
 			cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
@@ -67,13 +71,18 @@ class MobileNet_SSD(object):
 		# cv2.imshow('SSD', obj_det)
 		
 		try:
-			self.image_pub.publish(self.bridge.cv2_to_imgmsg(obj_det, 'bgr8'))
+			ros_img = self.bridge.cv2_to_imgmsg(obj_det, 'bgr8')
+			ros_img.header.stamp = rospy.get_rostime()
+			self.image_pub.publish(ros_img)
+			# print 'detect time:', ros_img.header.stamp
+			
 		except CvBridgeError as e:
 			print e
 		# cv2.imshow('Test', cv_image)
 		# cv2.waitKey(1)
 		end_time = time.time()
 		comp_time = end_time - start_time
+		
 		
 
 		if self.sleep:
@@ -85,8 +94,9 @@ class MobileNet_SSD(object):
 
 		self.count += 1
 		if self.count%25 == 0:
-			print 'fps: ', fps
-			print 'comp time: ', comp_time
+			print 'max fps: ', fps
+			print 'computation time: ', comp_time
+			print 'dif time:', ros_img.header.stamp.secs - msg.header.stamp.secs
 
 	def preprocess(self, src):
 	    img = cv2.resize(src, (300,300))
